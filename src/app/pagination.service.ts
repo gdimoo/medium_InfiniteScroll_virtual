@@ -195,35 +195,13 @@ export class PaginationService<T> {
    * @memberof PaginationService
    */
   more() {
-    const cursor = this.getCursor();
-    console.log('cursor', cursor);
-
     const more = this.afs.collection(this.query.path, ref => {
       return ref
         .orderBy(this.query.field, this.query.reverse ? 'asc' : 'desc')
         .limit(this.query.limit)
-        .startAfter(cursor);
+        .startAfter(this.latestEntry);
     });
     this.mapAndUpdate(more);
-  }
-
-
-  // Determines the doc snapshot to paginate query
-  /**
-   *
-   * ถ้าค่าความยาวชุดข้อมูลยังไม่หมด ส่งค่า doc ตำแหน่งสุดท้ายกลับ
-   * ถ้าข้อมหมดแล้ว retrun null
-   * @private
-   * @returns
-   * @memberof PaginationService
-   */
-  private getCursor() {
-    const current = this._data.value;
-
-    if (current.length) {
-      return this.query.prepend ? current[0].doc : current[current.length - 1].doc;
-    }
-    return null;
   }
 
 }
