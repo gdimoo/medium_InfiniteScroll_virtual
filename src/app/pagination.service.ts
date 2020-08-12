@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { AngularFirestore, AngularFirestoreCollection } from '@angular/fire/firestore';
 import { take, tap, scan } from 'rxjs/operators';
 
@@ -52,6 +52,15 @@ export class PaginationService<T> {
    */
   private query: QueryConfig;
 
+  /**
+   *
+   * subscription ไว้รับข้อมูลที่ดึงออกมาจาก firestore
+   * @private
+   * @type {Subscription}
+   * @memberof PaginationService
+   */
+  private subscription: Subscription = null;
+
   // Observable data
   /**
    *
@@ -74,6 +83,9 @@ export class PaginationService<T> {
    * @memberof PaginationService
    */
   loading: Observable<boolean> = this._loading.asObservable();
+
+  latestEntry: object;
+
   /**
    * Creates an instance of PaginationService.
    * @param {AngularFirestore} afs
@@ -96,29 +108,42 @@ export class PaginationService<T> {
 
     if (this._done.value || this._loading.value) { return; }
 
+
     // loading
     this._loading.next(true);
 
-    // Map snapshot with doc ref (needed for cursor) tap จับชุดข้อมูลที่ดึงมา 
+    // Map snapshot with doc ref (needed for cursor) tap จับชุดข้อมูลที่ดึงมา
     // ไปใส่ที่ค่า values โดยมีค่า doc ดูว่าข้อมูลดึงมาครบรึยัง และ data ทั้งหมด
-    return col.snapshotChanges().pipe(
+    this.subscription = col.snapshotChanges().pipe(
       tap(arr => {
-        const values = arr.map(snap => {
-          const data = snap.payload.doc.data();
-          const doc = snap.payload.doc;
-          return { ...data, doc };
-        });
-
+        console.log(arr);
         // update source with new values, done loading
-        this._data.next(values);
+        this._data.next(
+          arr.map(snap => ({
+            id: snap.payload.doc.id, ...(snap.payload.doc.data()), doc: snap.payload.doc
+          }))
+        );
         this._loading.next(false);
 
+        console.log('data', this.data);
+
+
         // no more values, mark done
-        if (!values.length) {
+        if (!arr.length || arr.length < this.query.limit) {
           this._done.next(true);
         }
-      })
-      , take(1)).subscribe();
+        // this._done.next(!arr.length);
+      }), take(1)).subscribe(data => {
+        this.latestEntry = data[data.length - 1].payload.doc;
+      }, err => {
+        console.error(err);
+        this._loading.next(false);
+      }, () => {
+        if (this.subscription) {
+          this.subscription.unsubscribe();
+        }
+      });
+    return this.subscription;
 
   }
 
@@ -135,7 +160,7 @@ export class PaginationService<T> {
    * @param {*} [opts] ตัว option อื่นๆ ที่จะใช้ดึงข้อมูล
    * @memberof PaginationService
    */
-  init(path: string, field: string = 'title', opts?: any ) {
+  init(path: string, field: string = 'title', opts?: any) {
     this.query = {
       path,
       field,
