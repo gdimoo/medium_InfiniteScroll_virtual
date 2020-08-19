@@ -17,9 +17,6 @@ interface QueryConfig {
  * @export
  * @class PaginationService
  */
-@Injectable({
-  providedIn: 'root'
-})
 export class PaginationService<T> {
 
   /**
